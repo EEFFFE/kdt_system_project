@@ -30,6 +30,8 @@ int create_system_server()
             perror("system_sever process folk failed \n");
 
         case 0:
+            if (prctl(PR_SET_NAME, (unsigned long) name) < 0)
+                perror("prctl()");
             system_server();
             break;
         

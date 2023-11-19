@@ -1,15 +1,23 @@
 #include <stdio.h>
 #include <sys/wait.h>
+#include <signal.h>
 
 #include <system_server.h>
 #include <gui.h>
 #include <input.h>
 #include <web_server.h>
+#include <asm-generic/signal-defs.h>
+
+static void sigcldHandler(int sig){
+    printf("Received signal from child : %d\n", sig);
+}
 
 int main()
 {
     pid_t spid, gpid, ipid, wpid;
     int status, savedErrno;
+
+    signal(SIGCHLD, sigcldHandler);
 
     printf("메인 함수입니다.\n");
     printf("시스템 서버를 생성합니다.\n");
