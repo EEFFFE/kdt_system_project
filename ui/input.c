@@ -66,10 +66,6 @@ int input()
 
     struct sigaction siga;
 
-    //memset(&siga, 0, sizeof(sigaction));
-    //sigemptyset(&siga.sa_mask);
-
-    //siga.sa_flags = SA_RESTART | SA_SIGINFO;
     siga.sa_sigaction = segfault_handler;
 
     sigaction(SIGSEGV, &siga, NULL);
