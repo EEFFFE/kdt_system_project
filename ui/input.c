@@ -8,7 +8,7 @@
 
 int input()
 {
-    printf("나 input 프로세스!\n");
+    printf("Enter input process\n");
 
     while (1) {
         sleep(1);
@@ -22,9 +22,19 @@ int create_input()
     pid_t systemPid;
     const char *name = "input";
 
-    printf("여기서 input 프로세스를 생성합니다.\n");
+    printf("Creating input process\n");
 
-    /* fork 를 이용하세요 */
+    switch(systemPid = fork()){
+        case -1:
+            perror("input process create failed \n");
+        
+        case 0 :
+            input();
+            break;
+
+        default :
+            break;
+    }
 
     return 0;
 }

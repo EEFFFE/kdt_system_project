@@ -8,9 +8,10 @@
 
 int system_server()
 {
-    printf("나 system_server 프로세스!\n");
+    printf("Enter system_server process\n");
 
     while (1) {
+        //printf("system_server process is operating \n");
         sleep(1);
     }
 
@@ -22,9 +23,19 @@ int create_system_server()
     pid_t systemPid;
     const char *name = "system_server";
 
-    printf("여기서 시스템 프로세스를 생성합니다.\n");
+    printf("Creating system_server process \n");
 
-    /* fork 를 이용하세요 */
+    switch(systemPid = fork()) {
+        case -1:
+            perror("system_sever process folk failed \n");
+
+        case 0:
+            system_server();
+            break;
+        
+        default:
+            break;
+    }
 
     return 0;
 }

@@ -9,11 +9,23 @@ int create_web_server()
 {
     pid_t systemPid;
 
-    printf("여기서 Web Server 프로세스를 생성합니다.\n");
+    printf("Creating web_server process\n");
 
-    /* fork + exec 를 이용하세요 */
-    /* exec으로 filebrowser을 실행 하세요. */
-    /* execl("/usr/local/bin/filebrowser", "filebrowser", "-p", "8282", (char *) NULL)) */
+    sleep(5);
+
+    switch(systemPid = fork()){
+        case -1 : 
+            printf("web_server process fork failed \n");
+
+        case 0 :
+            if(execl("/usr/local/bin/filebrowser", "filebrowser", "-p", "8282", (char *) NULL)) {
+                perror("web_server process execl failed \n");
+            }
+            printf("Finish web_server process\n");
+            break;
+        default :
+            break;
+    }
 
     return 0;
 }
