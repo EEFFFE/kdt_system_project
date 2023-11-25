@@ -1,18 +1,69 @@
 #include <stdio.h>
 #include <sys/prctl.h>
+#include <signal.h>
+#include <sys/time.h>
+#include <time.h>
 
 #include <system_server.h>
 #include <gui.h>
 #include <input.h>
 #include <web_server.h>
 
+
+
+void timer_sighandler(){
+    static int timer = 0;
+    timer ++;
+    printf("System timer : %d sec\n", timer );
+}   
+
+int posix_sleep_ms(unsigned int overp_time, unsigned int underp_time)
+{
+    struct timespec sleep_time;
+
+    sleep_time.tv_sec = overp_time;
+    sleep_time.tv_nsec = underp_time;
+
+    return nanosleep(&sleep_time, NULL);
+}
+
 int system_server()
 {
-    printf("Enter system_server process\n");
+    struct itimerspec it;
+    struct sigaction  sa;
+    struct sigevent   sev;
+    timer_t tidlist;
 
+    printf("나 system_server 프로세스!\n");
+
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_SIGINFO;;
+    sa.sa_handler = timer_sighandler;
+    sigemptyset(&sa.sa_mask);
+    if (sigaction(SIGALRM, &sa, NULL) < 0)
+        perror("Sigaction error");
+
+    it.it_value.tv_sec = 5;
+    it.it_value.tv_nsec = 0;
+    it.it_interval.tv_sec = 5;
+    it.it_interval.tv_nsec = 0;
+
+    sev.sigev_notify = SIGEV_SIGNAL;    
+    sev.sigev_signo = SIGALRM;        
+    sev.sigev_value.sival_ptr = &tidlist;
+
+    if (timer_create(CLOCK_REALTIME, &sev, &tidlist) < 0) {
+        perror("timer_create");
+        exit(-1);
+    }
+
+    if (timer_settime(tidlist, 0, &it, NULL) < 0) {
+        perror("timer_settime");
+        exit(-1);
+    }    
+    
     while (1) {
-        //printf("system_server process is operating \n");
-        sleep(1);
+        posix_sleep_ms(5, 0);
     }
 
     return 0;
