@@ -10,6 +10,14 @@
 #include <gui.h>
 #include <input.h>
 #include <web_server.h>
+#include <camera_HAL.h>
+#include <bits/sigevent-consts.h>
+
+pthread_mutex_t system_loop_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t  system_loop_cond  = PTHREAD_COND_INITIALIZER;
+bool            system_loop_exit = false;    ///< true if main loop should exit
+
+static int toy_timer = 0;
 
 void timer_sighandler();
 int posix_sleep_ms(unsigned int overp_time, unsigned int underp_time);
@@ -18,6 +26,9 @@ void *watchdog_thread();
 void *monitor_thread();
 void *disk_service_thread();
 void *camera_service_thread();
+
+void signal_exit(void);
+static void timer_expire_signal_handler();
 
 int system_server();
 
@@ -33,6 +44,9 @@ int system_server()
 
     printf("나 system_server 프로세스!\n");
 
+    signal(SIGALRM, timer_expire_signal_handler);
+    
+
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = SA_SIGINFO;
     sa.sa_handler = timer_sighandler;
@@ -40,9 +54,9 @@ int system_server()
     if (sigaction(SIGALRM, &sa, NULL) < 0)
         perror("Sigaction error");
 
-    it.it_value.tv_sec = 5;
+    it.it_value.tv_sec = 10;
     it.it_value.tv_nsec = 0;
-    it.it_interval.tv_sec = 5;
+    it.it_interval.tv_sec = 10;
     it.it_interval.tv_nsec = 0;
 
     sev.sigev_notify = SIGEV_SIGNAL;    
@@ -82,6 +96,24 @@ int system_server()
         perror("Camera service thread create error");
         exit(1);
     }
+
+    if(pthread_mutex_lock(&system_loop_mutex) < 0){
+        perror("System server mutex lock error");
+        exit(0);
+    }
+    while (system_loop_exit == false) {
+        int result = pthread_cond_wait(&system_loop_cond, &system_loop_mutex);
+        if(result == ETIMEDOUT){
+            printf("System exit timed out!\n");
+        }
+    }
+    if(pthread_mutex_unlock(&system_loop_mutex) < 0){
+        perror("System server mutex unlock error");
+        exit(0);
+    }
+    while (system_loop_exit == false) {
+        sleep(1);
+    }
     
     while (1) {
         posix_sleep_ms(5, 0);
@@ -115,9 +147,9 @@ int create_system_server()
 }
 
 void timer_sighandler(){
-    static int timer = 0;
-    timer ++;
-    printf("System timer : %d sec\n", timer );
+    toy_timer ++;
+    signal_exit();
+    //printf("System timer : %d sec\n", timer );
 }   
 
 int posix_sleep_ms(unsigned int overp_time, unsigned int underp_time)
@@ -158,4 +190,24 @@ void *camera_service_thread(){
         posix_sleep_ms(60, 0);
     }
 
+}
+
+void signal_exit(void)
+{
+    if(pthread_mutex_lock(&system_loop_mutex) < 0){
+        perror("Signal exit mutex lock error");
+        exit(0);    
+    }
+    system_loop_exit = true;
+    pthread_cond_signal(&system_loop_cond);
+    if(pthread_mutex_unlock(&system_loop_mutex) < 0){
+        perror("Signal exit mutex unlock error");
+        exit(0);    
+    }
+}
+
+static void timer_expire_signal_handler()
+{
+    toy_timer++;
+    signal_exit();
 }
