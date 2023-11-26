@@ -186,6 +186,8 @@ void *disk_service_thread(){
 
 void *camera_service_thread(){
     printf("Camera service thread started!\n");
+    toy_camera_open();
+    toy_camera_take_picture();
     while(1){
         posix_sleep_ms(60, 0);
     }
@@ -199,6 +201,8 @@ void signal_exit(void)
         exit(0);    
     }
     system_loop_exit = true;
+    pthread_cond_broadcast(&system_loop_cond);
+    
     pthread_cond_signal(&system_loop_cond);
     if(pthread_mutex_unlock(&system_loop_mutex) < 0){
         perror("Signal exit mutex unlock error");
