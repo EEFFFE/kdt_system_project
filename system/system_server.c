@@ -165,22 +165,36 @@ int posix_sleep_ms(unsigned int overp_time, unsigned int underp_time)
 void *watchdog_thread(){
     printf("Watchdog thread started!\n");
     while(1){
-        posix_sleep_ms(60, 0);
+        posix_sleep_ms(10, 0);
     }
 }
 
 void *monitor_thread(){
     printf("Monitor thread started!\n");
     while(1){
-        posix_sleep_ms(60, 0);
+        posix_sleep_ms(10, 0);
     }
 
 }
 
 void *disk_service_thread(){
     printf("Disk service thread started!\n");
+
+    FILE* apipe;
+    char buf[1024];
+    char cmd[]="df -h ./";
+
     while(1){
-        posix_sleep_ms(60, 0);
+        apipe = popen(cmd, "r");
+        if (apipe == NULL) {
+            perror("popen");
+            exit(0);
+        }
+        while (fgets(buf, 1024, apipe) != NULL) {
+            printf("%s", buf);
+        }
+        pclose(apipe);
+        posix_sleep_ms(10, 0);
     }
 }
 
@@ -189,7 +203,7 @@ void *camera_service_thread(){
     toy_camera_open();
     toy_camera_take_picture();
     while(1){
-        posix_sleep_ms(60, 0);
+        posix_sleep_ms(10, 0);
     }
 
 }
