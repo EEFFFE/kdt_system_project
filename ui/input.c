@@ -20,6 +20,12 @@
 
 #define TOY_TOK_BUFSIZE 64
 #define TOY_TOK_DELIM " \t\r\n\a"
+#define TOY_BUFFSIZE 1024
+
+static pthread_mutex_t global_message_mutex  = PTHREAD_MUTEX_INITIALIZER;
+
+// global_message <~ 모든 문제를 만드는 전역 변수
+static char global_message[TOY_BUFFSIZE];//=  "Hello Sir";
 
 
 typedef struct _sig_ucontext {
@@ -30,20 +36,10 @@ typedef struct _sig_ucontext {
     sigset_t uc_sigmask;
 } sig_ucontext_t;
 
-int toy_send(char **args);
-int toy_shell(char **args);
-int toy_exit(char **args);
-
 char *builtin_str[] = {
     "send",
     "sh",
     "exit"
-};
-
-int (*builtin_func[]) (char **) = {
-    &toy_send,
-    &toy_shell,
-    &toy_exit
 };
 
 /*  sensor thread   */
@@ -65,6 +61,12 @@ void *command_thread(void* arg);
 void segfault_handler(int sig_num, siginfo_t * info, void * ucontext);
 
 int input();
+
+int (*builtin_func[]) (char **) = {
+    &toy_send,
+    &toy_shell,
+    &toy_exit
+};
 
 
 int create_input()
@@ -154,6 +156,7 @@ int input()
         sleep(1);
     }
 
+
     return 0;
 }
 
@@ -161,11 +164,33 @@ int input()
 
 void *sensor_thread(void* arg)
 {
+    char saved_message[TOY_BUFFSIZE];
     char *s = arg;
-
-    printf("%s", s);
-
+    int i = 0;
+    int mkey = 0;
+    printf("%s", s); 
+ 
     while (1) {
+        i = 0;
+        mkey = 0;
+        // 여기서 뮤텍스
+        // 과제를 억지로 만들기 위해 한 글자씩 출력 후 슬립
+        mkey = pthread_mutex_lock(&global_message_mutex);
+        if (mkey != 0){
+            perror("Sensor mutex lock error");
+            exit(0);
+        }
+        while (global_message[i] != '\0') {
+            printf("\t\t%c", global_message[i]);
+            fflush(stdout);
+            sleep(5);
+            i++;
+        }
+        mkey = pthread_mutex_unlock(&global_message_mutex);
+            if (mkey != 0){
+                perror("Sensor mutex unlock error");
+                exit(0);
+            }
         sleep(5);
     }
 
@@ -173,10 +198,6 @@ void *sensor_thread(void* arg)
 }
 
 /*  command thread   */
-
-int toy_send(char **args);
-int toy_shell(char **args);
-int toy_exit(char **args);
 
 int toy_num_builtins()
 {
@@ -190,6 +211,28 @@ int toy_send(char **args)
     return 1;
 }
 
+int toy_mutex(char **args)
+{
+    int mkey = 0;
+    if (args[1] == NULL) {
+        return 1;
+    }
+
+    printf("save message: %s\n", args[1]);
+    // 여기서 뮤텍스
+    mkey = pthread_mutex_lock(&global_message_mutex);
+    if(mkey != 0){
+        perror("Toy mutex lock error");
+        exit(0);
+    }
+    strcpy(global_message, args[1]);
+    mkey = pthread_mutex_lock(&global_message_mutex);
+    if(mkey != 0){
+        perror("Toy mutex unlock error");
+        exit(0);
+    }
+    return 1;
+}
 int toy_exit(char **args)
 {
     return 0;
@@ -290,13 +333,22 @@ void toy_loop(void)
     char *line;
     char **args;
     int status;
-
+    int mkey;
     do {
+        mkey = pthread_mutex_lock(&global_message_mutex);
+        if (mkey != 0){
+                perror("Toy loop mutex lock error");
+                exit(0);
+        }
         printf("TOY>");
+        mkey = pthread_mutex_unlock(&global_message_mutex);
+        if (mkey != 0){
+                perror("Toy loop mutex unlock error");
+                exit(0);
+        }
         line = toy_read_line();
         args = toy_split_line(line);
         status = toy_execute(args);
-
         free(line);
         free(args);
     } while (status);

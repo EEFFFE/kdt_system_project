@@ -33,7 +33,7 @@ int system_server()
 
     printf("나 system_server 프로세스!\n");
 
-    sigemptyset(&sa.sa_mask);
+    /*sigemptyset(&sa.sa_mask);
     sa.sa_flags = SA_SIGINFO;
     sa.sa_handler = timer_sighandler;
     sigemptyset(&sa.sa_mask);
@@ -57,8 +57,8 @@ int system_server()
     if (timer_settime(tidlist, 0, &it, NULL) < 0) {
         perror("timer_settime");
         exit(-1);
-    }    
-
+    }    */
+    
     retcode = pthread_create(&watchdog_thread_tid, NULL, watchdog_thread, NULL);
     if(retcode < 0){
         perror("Watchdog thread create error");
