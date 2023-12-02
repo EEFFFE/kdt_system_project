@@ -1,4 +1,5 @@
 #define CAMERA_TAKE_PICTURE 1
+#define SENSOR_DATA 1
 
 #include <stdio.h>
 #include <sys/prctl.h>
@@ -9,6 +10,8 @@
 #include <pthread.h>
 #include <mqueue.h>
 #include <semaphore.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
 
 #include <system_server.h>
 #include <gui.h>
@@ -16,6 +19,7 @@
 #include <web_server.h>
 #include <camera_HAL.h>
 #include <toy_message.h>
+#include <shared_memory.h>
 #include <bits/sigevent-consts.h>
 
 pthread_mutex_t system_loop_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -31,6 +35,8 @@ static int toy_timer = 0;
 pthread_mutex_t toy_timer_mutex = PTHREAD_MUTEX_INITIALIZER;
 static sem_t global_timer_sem;
 static bool global_timer_stopped;
+
+static shm_sensor_t *the_sensor_info = NULL;
 
 void timer_sighandler();
 int posix_sleep_ms(unsigned int overp_time, unsigned int underp_time);
@@ -218,6 +224,10 @@ void *watchdog_thread(){
 void *monitor_thread(){
     printf("Monitor thread started!\n");
     toy_msg_t msg;
+    
+    int shmid;
+    struct shmesg *shmp;
+    
     while(1){
         if(mq_receive(monitor_queue, (void *)&msg, sizeof(toy_msg_t), 0) < 0){
             perror("Message queue recevie error : monitor");
@@ -225,7 +235,19 @@ void *monitor_thread(){
         }
         printf("Monitor msq arrived\n");
         print_msq(&msg);
-        
+
+        if (msg.msg_type == SENSOR_DATA) {
+            shmid = msg.param1;
+            the_sensor_info = (shm_sensor_t *)shmat(shmid, NULL, SHM_RDONLY);
+            if(shmp < 0){
+                perror("shmat failed : monitor thread");
+                exit(0);
+            }
+            printf("temp: %d\n", the_sensor_info->temp);
+            printf("info: %d\n", the_sensor_info->press);
+            printf("humidity: %d\n", the_sensor_info->humidity);
+            
+        }
     }
 
 }

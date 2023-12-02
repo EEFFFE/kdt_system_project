@@ -11,7 +11,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <mqueue.h>
-
+#include <sys/ipc.h>
+#include <sys/shm.h>
 
 #include <system_server.h>
 #include <gui.h>
@@ -19,6 +20,7 @@
 #include <web_server.h>
 #include <toy_message.h>
 #include <bits/sigaction.h>
+#include <shared_memory.h>
 
 #define TOY_TOK_BUFSIZE 64
 #define TOY_TOK_DELIM " \t\r\n\a"
@@ -40,6 +42,10 @@ pthread_mutex_t count_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t empty = PTHREAD_COND_INITIALIZER;
 int thread_id[NUMTHREAD] = {0, 1, 2};
 int producer_count = 0, consumer_count = 0;
+
+static shm_sensor_t *the_sensor_info = NULL;
+int shmid;
+struct shmseg *shmp;
 
 static mqd_t watchdog_queue;
 static mqd_t monitor_queue;
@@ -76,6 +82,7 @@ int (*builtin_func[]) (char **) = {
     &toy_exit
 };
 
+static int posix_sleep_ms(unsigned int overp_time, unsigned int underp_time);
 
 /*  sensor thread   */
 void *sensor_thread(void* arg);
@@ -180,6 +187,17 @@ int input()
 
     sigaction(SIGSEGV, &siga, NULL);
 
+    shmid = shmget(SHM_KEY_SENSOR, sizeof(shm_sensor_t), IPC_CREAT | 0777);
+    if (shmid < 0){
+        perror("shmget failed : sensor thread");
+        exit(0);
+    }
+    the_sensor_info = (shm_sensor_t *)shmat(shmid, NULL, 0);
+    if (shmp < 0){
+        perror("shmat failed : sensor thread");
+        exit(0);
+    }
+
     watchdog_queue = mq_open("/watchdog_queue", O_RDWR);
     monitor_queue = mq_open("/monitor_queue", O_RDWR);
     disk_queue = mq_open("/disk_queue", O_RDWR);
@@ -217,16 +235,43 @@ int input()
     return 0;
 }
 
+static int posix_sleep_ms(unsigned int overp_time, unsigned int underp_time)
+{
+    struct timespec sleep_time;
+
+    sleep_time.tv_sec = overp_time;
+    sleep_time.tv_nsec = underp_time;
+
+    return nanosleep(&sleep_time, NULL);
+}
+
 /*  sensor thread   */
 
 void *sensor_thread(void* arg)
 {
     char *s = arg;
+    toy_msg_t msg;
+    int mqretcode;
+    // 여기 추가: 공유메모리 키
+    
 
     printf("%s", s);
 
+    the_sensor_info->temp = 1;
+    the_sensor_info->press = 2;
+    the_sensor_info->humidity = 4;
+
     while (1) {
-        sleep(5);
+        posix_sleep_ms(5, 0);
+        // 여기에 구현해 주세요.
+        // 현재 고도/온도/기압 정보를  SYS V shared memory에 저장 후
+        // monitor thread에 메시지 전송한다.
+
+        msg.msg_type = 1;
+        msg.param1 = shmid;
+        msg.param2 = 0;
+        mqretcode = mq_send(monitor_queue, (char *)&msg, sizeof(msg), 0);
+        assert(mqretcode == 0);
     }
 
     return 0;

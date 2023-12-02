@@ -12,12 +12,14 @@ CC = gcc
 CPP = g++
 
 HEADERS =  ../$(SYSTEM)/system_server.h\
+		../$(SYSTEM)/shared_memory.h\
 		../$(UI)/gui.h\
 		../$(UI)/input.h\
 		../$(WEB_SERVER)/web_server.h\
 		../$(HAL)/ControlThread.h\
 		../$(HAL)/camera_HAL.h\
 		../toy_message.h\
+		
 
 CPPINCLUDES = -l${SYSTEM} -l${UI} -l${WEB_SERVER} -l${HAL}		
 
