@@ -14,8 +14,8 @@ FILENAME = main
 MAINo = $(FILENAME).o
 MAINc = $(FILENAME).c
 
-MAINh = $(SYSTEM)/system_server.h $(UI)/gui.h $(UI)/input.h $(WEB_SERVER)/web_server.h
-MAINf = -I$(SYSTEM) -I$(UI) -I$(WEB_SERVER) -c -g -o
+MAINh = $(SYSTEM)/system_server.h $(UI)/gui.h $(UI)/input.h $(WEB_SERVER)/web_server.h ./toy_message.h
+MAINf = -I$(SYSTEM) -I$(UI) -I$(WEB_SERVER) -I./ -c -g -o
 
 DIROBJ = ./system/system_server.o ./ui/gui.o ./ui/input.o ./web_server/web_server.o
 HALOBJ = ./hal/camera_HAL.o ./hal/ControlThread.o

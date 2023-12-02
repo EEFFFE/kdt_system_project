@@ -1,3 +1,5 @@
+#define CAMERA_TAKE_PICTURE 1
+
 #include <stdio.h>
 #include <sys/prctl.h>
 #include <signal.h>
@@ -5,23 +7,32 @@
 #include <time.h>
 #include <assert.h>
 #include <pthread.h>
+#include <mqueue.h>
 
 #include <system_server.h>
 #include <gui.h>
 #include <input.h>
 #include <web_server.h>
 #include <camera_HAL.h>
+#include <toy_message.h>
 #include <bits/sigevent-consts.h>
 
 pthread_mutex_t system_loop_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t  system_loop_cond  = PTHREAD_COND_INITIALIZER;
 bool            system_loop_exit = false;    ///< true if main loop should exit
 
+static mqd_t watchdog_queue;
+static mqd_t monitor_queue;
+static mqd_t disk_queue;
+static mqd_t camera_queue;
+
 static int toy_timer = 0;
 
 void timer_sighandler();
 int posix_sleep_ms(unsigned int overp_time, unsigned int underp_time);
 
+
+void print_msq(toy_msg_t *msg);
 void *watchdog_thread();
 void *monitor_thread();
 void *disk_service_thread();
@@ -72,6 +83,12 @@ int system_server()
         perror("timer_settime");
         exit(-1);
     }    
+
+    watchdog_queue = mq_open("/watchdog_queue", O_RDWR);
+    monitor_queue = mq_open("/monitor_queue", O_RDWR);
+    disk_queue = mq_open("/disk_queue", O_RDWR);
+    camera_queue = mq_open("/camera_queue", O_RDWR);
+    
 
     retcode = pthread_create(&watchdog_thread_tid, NULL, watchdog_thread, NULL);
     if(retcode < 0){
@@ -162,17 +179,38 @@ int posix_sleep_ms(unsigned int overp_time, unsigned int underp_time)
     return nanosleep(&sleep_time, NULL);
 }
 
+void print_msq(toy_msg_t *msg){
+    printf("msg_type : %d\n", msg->msg_type);
+    printf("param1 : %d\n", msg->param1);
+    printf("param2 : %d\n", msg->param2);
+
+}
+
 void *watchdog_thread(){
     printf("Watchdog thread started!\n");
+    toy_msg_t msg;
     while(1){
-        posix_sleep_ms(10, 0);
+        if(mq_receive(watchdog_queue, (void *)&msg, sizeof(toy_msg_t), 0) < 0){
+            perror("Message queue recevie error : watchdog");
+            exit(0);
+        }
+        printf("Watchdog msq arrived\n ");
+        print_msq(&msg);
+
     }
 }
 
 void *monitor_thread(){
     printf("Monitor thread started!\n");
+    toy_msg_t msg;
     while(1){
-        posix_sleep_ms(10, 0);
+        if(mq_receive(monitor_queue, (void *)&msg, sizeof(toy_msg_t), 0) < 0){
+            perror("Message queue recevie error : monitor");
+            exit(0);
+        }
+        printf("Monitor msq arrived\n");
+        print_msq(&msg);
+        
     }
 
 }
@@ -184,7 +222,17 @@ void *disk_service_thread(){
     char buf[1024];
     char cmd[]="df -h ./";
 
+    toy_msg_t msg;
+
     while(1){
+        if(mq_receive(monitor_queue, (void *)&msg, sizeof(toy_msg_t), 0) < 0){
+            perror("Message queue recevie error : disk");
+            exit(0);
+        }
+        printf("Disk msq arrived\n");
+
+        print_msq(&msg);
+
         apipe = popen(cmd, "r");
         if (apipe == NULL) {
             perror("popen");
@@ -194,7 +242,7 @@ void *disk_service_thread(){
             printf("%s", buf);
         }
         pclose(apipe);
-        posix_sleep_ms(10, 0);
+        //posix_sleep_ms(10, 0);
     }
 }
 
@@ -202,8 +250,19 @@ void *camera_service_thread(){
     printf("Camera service thread started!\n");
     toy_camera_open();
     toy_camera_take_picture();
+    toy_msg_t msg;
+
     while(1){
-        posix_sleep_ms(10, 0);
+        if(mq_receive(camera_queue, (void *)&msg, sizeof(toy_msg_t), 0) < 0){
+            perror("Message queue recevie error : camera");
+            exit(0);
+        }
+        printf("Camera msq arrived\n");
+
+        print_msq(&msg);
+        if(msg.msg_type == CAMERA_TAKE_PICTURE){
+            toy_camera_take_picture();
+        }
     }
 
 }

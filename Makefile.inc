@@ -1,4 +1,4 @@
-PL_CFLAGS = -I../$(SYSTEM) -I../$(UI) -I../$(WEB_SERVER) -I../$(HAL)  -g -o
+PL_CFLAGS = -I../$(SYSTEM) -I../$(UI) -I../$(WEB_SERVER) -I../$(HAL) -I../.  -g -o
 PL_CPPFLAGS = -lpthread -lm -lrt
 
 CPPLIBS = -lpthread -lm -lrt
@@ -17,6 +17,7 @@ HEADERS =  ../$(SYSTEM)/system_server.h\
 		../$(WEB_SERVER)/web_server.h\
 		../$(HAL)/ControlThread.h\
 		../$(HAL)/camera_HAL.h\
+		../toy_message.h\
 
 CPPINCLUDES = -l${SYSTEM} -l${UI} -l${WEB_SERVER} -l${HAL}		
 

@@ -10,12 +10,14 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <mqueue.h>
 
 
 #include <system_server.h>
 #include <gui.h>
 #include <input.h>
 #include <web_server.h>
+#include <toy_message.h>
 #include <bits/sigaction.h>
 
 #define TOY_TOK_BUFSIZE 64
@@ -24,7 +26,6 @@
 #define TOY_TOK_BUFSIZE 64
 #define TOY_TOK_DELIM " \t\r\n\a"
 #define TOY_BUFFSIZE 1024
-
 
 #define MAX 30
 #define NUMTHREAD 3 /* number of threads */
@@ -40,6 +41,11 @@ pthread_cond_t empty = PTHREAD_COND_INITIALIZER;
 int thread_id[NUMTHREAD] = {0, 1, 2};
 int producer_count = 0, consumer_count = 0;
 
+static mqd_t watchdog_queue;
+static mqd_t monitor_queue;
+static mqd_t disk_queue;
+static mqd_t camera_queue;
+
 typedef struct _sig_ucontext {
     unsigned long uc_flags;
     struct ucontext *uc_link;
@@ -52,11 +58,13 @@ int toy_send(char **args);
 int toy_shell(char **args);
 int toy_exit(char **args);
 int toy_mutex(char **args);
+int toy_message_queue(char **args);
 
 char *builtin_str[] = {
     "send",
     "mu",
     "sh",
+    "mq",
     "exit"
 };
 
@@ -64,8 +72,10 @@ int (*builtin_func[]) (char **) = {
     &toy_send,
     &toy_mutex,
     &toy_shell,
+    &toy_message_queue,
     &toy_exit
 };
+
 
 /*  sensor thread   */
 void *sensor_thread(void* arg);
@@ -170,6 +180,11 @@ int input()
 
     sigaction(SIGSEGV, &siga, NULL);
 
+    watchdog_queue = mq_open("/watchdog_queue", O_RDWR);
+    monitor_queue = mq_open("/monitor_queue", O_RDWR);
+    disk_queue = mq_open("/disk_queue", O_RDWR);
+    camera_queue = mq_open("/camera_queue", O_RDWR);
+
     retcode = pthread_create(&command_thread_tid, NULL, command_thread, "command thread\n");
     if(retcode < 0){
         perror("Command thread error");
@@ -181,18 +196,18 @@ int input()
         return -1;
     }
 
-    pthread_mutex_lock(&global_message_mutex);
+    /*pthread_mutex_lock(&global_message_mutex);
     strcpy(global_message, "hello world!");
     buflen = strlen(global_message);
     pthread_mutex_unlock(&global_message_mutex);
     pthread_create(&thread[0], NULL, (void *)toy_consumer, &thread_id[0]);
     pthread_create(&thread[1], NULL, (void *)toy_producer, &thread_id[1]);
-    pthread_create(&thread[2], NULL, (void *)toy_producer, &thread_id[2]);
+    pthread_create(&thread[2], NULL, (void *)toy_producer, &thread_id[2]);*/
 
 
-    for (i = 0; i < NUMTHREAD; i++) {
+    /*for (i = 0; i < NUMTHREAD; i++) {
         pthread_join(thread[i], NULL);
-    }
+    }*/
 
 
     while (1) {
@@ -350,13 +365,32 @@ void toy_loop(void)
 void *command_thread(void* arg)
 {
     char *s = arg;
-
     printf("%s", s);
-
     toy_loop();
-
     return 0;
 }
+
+int toy_message_queue(char **args)
+{
+    int mqretcode;
+    toy_msg_t msg;
+
+    if (args[1] == NULL || args[2] == NULL) {
+        return 1;
+    }
+
+    if (!strcmp(args[1], "camera")) {
+        msg.msg_type = atoi(args[2]);
+        msg.param1 = 0;
+        msg.param2 = 0;
+        mqretcode = mq_send(camera_queue, (char *)&msg, sizeof(msg), 0);
+        assert(mqretcode == 0);
+    }
+
+    return 1;
+}
+
+/*  */
 
 
 int toy_mutex(char **args)
