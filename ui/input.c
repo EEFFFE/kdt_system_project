@@ -13,6 +13,10 @@
 #include <mqueue.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <execinfo.h>
 
 #include <system_server.h>
 #include <gui.h>
@@ -65,12 +69,14 @@ int toy_shell(char **args);
 int toy_exit(char **args);
 int toy_mutex(char **args);
 int toy_message_queue(char **args);
+int toy_read_elf_header(char **args);
 
 char *builtin_str[] = {
     "send",
     "mu",
     "sh",
     "mq",
+    "elf",
     "exit"
 };
 
@@ -79,6 +85,7 @@ int (*builtin_func[]) (char **) = {
     &toy_mutex,
     &toy_shell,
     &toy_message_queue,
+    &toy_read_elf_header,
     &toy_exit
 };
 
@@ -435,7 +442,41 @@ int toy_message_queue(char **args)
     return 1;
 }
 
-/*  */
+/* read_elf */
+int toy_read_elf_header(char **args)
+{
+    int mqretcode;
+    toy_msg_t msg;
+    int in_fd;
+    char *contents = NULL;
+    size_t contents_sz;
+    struct stat st;
+    Elf64Hdr *map;
+
+    in_fd = open("./sample/sample.elf", O_RDONLY);
+
+	if ( in_fd < 0 ) {
+        perror("File is not available");
+        return 0;
+    }
+    if (fstat(in_fd, &st) == 0) {
+                
+        map = (Elf64Hdr *)mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, in_fd, 0);
+        if(map == MAP_FAILED){
+            perror("mmap failed : read_elf");
+            exit(0);
+        }
+        printf("file type : %d\n", map->e_type);
+        printf("Architecture : %d\n", map->e_machine);
+        printf("file version : %d\n", map->e_version);
+        printf("virtual address : %ld\n", map->e_entry);
+        printf("header table file offset : %ld\n", map->e_phoff);
+        munmap(map, contents_sz);
+    }
+
+
+    return 1;
+}
 
 
 int toy_mutex(char **args)
