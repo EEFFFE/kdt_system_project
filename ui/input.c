@@ -36,6 +36,8 @@
 #define MAX 30
 #define NUMTHREAD 3 /* number of threads */
 
+#define DUMP_STATE 2
+
 static pthread_mutex_t global_message_mutex  = PTHREAD_MUTEX_INITIALIZER;
 static char global_message[TOY_BUFFSIZE];
 
@@ -70,6 +72,7 @@ int toy_exit(char **args);
 int toy_mutex(char **args);
 int toy_message_queue(char **args);
 int toy_read_elf_header(char **args);
+int toy_dump_state(char **args);
 
 char *builtin_str[] = {
     "send",
@@ -77,8 +80,10 @@ char *builtin_str[] = {
     "sh",
     "mq",
     "elf",
+    "dump",
     "exit"
 };
+
 
 int (*builtin_func[]) (char **) = {
     &toy_send,
@@ -86,6 +91,7 @@ int (*builtin_func[]) (char **) = {
     &toy_shell,
     &toy_message_queue,
     &toy_read_elf_header,
+    &toy_dump_state,
     &toy_exit
 };
 
@@ -478,6 +484,21 @@ int toy_read_elf_header(char **args)
     return 1;
 }
 
+int toy_dump_state(char **args)
+{
+    int mqretcode;
+    toy_msg_t msg;
+
+    msg.msg_type = DUMP_STATE;
+    msg.param1 = 0;
+    msg.param2 = 0;
+    mqretcode = mq_send(camera_queue, (char *)&msg, sizeof(msg), 0);
+    assert(mqretcode == 0);
+    mqretcode = mq_send(monitor_queue, (char *)&msg, sizeof(msg), 0);
+    assert(mqretcode == 0);
+
+    return 1;
+}
 
 int toy_mutex(char **args)
 {

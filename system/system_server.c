@@ -3,6 +3,8 @@
 #define BUF_LEN 1024
 #define TOY_TEST_FS "./fs"
 
+#define DUMP_STATE 2
+
 #include <stdio.h>
 #include <sys/prctl.h>
 #include <signal.h>
@@ -64,6 +66,9 @@ void set_periodic_timer(long sec_delay, long usec_delay);
 
 int system_server();
 static void displayInotifyEvent(struct inotify_event *i);
+
+void dumpstate();
+
 
 
 int system_server()
@@ -258,6 +263,9 @@ void *monitor_thread(){
             printf("humidity: %d\n", the_sensor_info->humidity);
             
         }
+        if (msg.msg_type == DUMP_STATE) {
+            dumpstate();
+        }
     }
 
 }
@@ -377,6 +385,9 @@ void *camera_service_thread(){
         if(msg.msg_type == CAMERA_TAKE_PICTURE){
             toy_camera_take_picture();
         }
+        else if (msg.msg_type == DUMP_STATE) {
+            toy_camera_dump();
+        }
     }
 
 }
@@ -384,7 +395,7 @@ void *camera_service_thread(){
 static void *timer_thread(void *not_used)
 {
     signal(SIGALRM, timer_sighandler);
-    set_periodic_timer(1, 1);
+    //set_periodic_timer(1, 1);
 
     sem_init(&global_timer_sem, 0, 0);
 
@@ -453,3 +464,48 @@ void set_periodic_timer(long sec_delay, long usec_delay)
 
 	setitimer(ITIMER_REAL, &itimer_val, (struct itimerval*)0);
 }
+
+void dumpstate()
+{
+    int fd;
+    char buf[1024];
+    const char* proc_list[] = {
+    "/proc/version", 
+    "/proc/meminfo", 
+    "/proc/vmstat",
+    "/proc/vmallocinfo",
+    "/proc/slabinfo",
+    "/proc/zoneinfo",
+    "/proc/pagetypeinfo",
+    "/proc/buddyinfo",
+    "/proc/net/dev",
+    "/proc/net/route",
+    "/proc/net/ipv6_route",
+    "/proc/interrupts"
+    };
+
+    for(int i = 0; i < 12; i++) {
+
+        fd = open(proc_list[i], O_RDONLY);
+        if(fd < 0) {
+            perror("open failed\n");
+            return;
+        }
+
+        printf("\n____________%s____________\n", proc_list[i]);
+
+        while(read(fd,buf,1024) > 0) {
+            write(STDOUT_FILENO, buf, 1024);
+        }
+
+        if (close(fd) == -1) {
+            perror("close failed");
+            return;
+        }
+
+        printf("\n");
+
+    }
+}
+
+
