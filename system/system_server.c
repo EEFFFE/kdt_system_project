@@ -1,5 +1,7 @@
 #define CAMERA_TAKE_PICTURE 1
 #define SENSOR_DATA 1
+#define BUF_LEN 1024
+#define TOY_TEST_FS "./fs"
 
 #include <stdio.h>
 #include <sys/prctl.h>
@@ -12,6 +14,11 @@
 #include <semaphore.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
+#include <string.h>
+#include <dirent.h>
+#include <sys/inotify.h>
+#include <sys/stat.h>
+
 
 #include <system_server.h>
 #include <gui.h>
@@ -45,6 +52,8 @@ int posix_sleep_ms(unsigned int overp_time, unsigned int underp_time);
 void print_msq(toy_msg_t *msg);
 void *watchdog_thread();
 void *monitor_thread();
+
+static long get_directory_size(char *dirname);
 void *disk_service_thread();
 void *camera_service_thread();
 static void *timer_thread(void *not_used);
@@ -54,6 +63,7 @@ static void timer_expire_signal_handler();
 void set_periodic_timer(long sec_delay, long usec_delay);
 
 int system_server();
+static void displayInotifyEvent(struct inotify_event *i);
 
 
 int system_server()
@@ -252,6 +262,37 @@ void *monitor_thread(){
 
 }
 
+static long get_directory_size(char *dirname)
+{
+    DIR *dir = opendir(dirname);
+    if (dir == 0)
+        return 0;
+
+    struct dirent *dit;
+    struct stat st;
+    long size = 0;
+    long total_size = 0;
+    char filePath[1024];
+
+    while ((dit = readdir(dir)) != NULL) {
+        if ( (strcmp(dit->d_name, ".") == 0) || (strcmp(dit->d_name, "..") == 0) )
+            continue;
+
+        sprintf(filePath, "%s/%s", dirname, dit->d_name);
+        if (lstat(filePath, &st) != 0)
+            continue;
+        size = st.st_size;
+
+        if (S_ISDIR(st.st_mode)) {
+            long dir_size = get_directory_size(filePath) + size;
+            total_size += dir_size;
+        } else {
+            total_size += size;
+        }
+    }
+    return total_size;
+}
+
 void *disk_service_thread(){
     printf("Disk service thread started!\n");
 
@@ -261,16 +302,52 @@ void *disk_service_thread(){
 
     toy_msg_t msg;
 
+    int inotifyFd, wd, j;
+    ssize_t numRead;
+    char *p;
+    struct inotify_event *event;
+    long total_size = 0;
+    char *directory = TOY_TEST_FS;
+    
+    inotifyFd = inotify_init();
+    if (inotifyFd < 0){
+        perror("inotify failed");
+        return 0;
+    }
+    wd = inotify_add_watch(inotifyFd, TOY_TEST_FS, IN_CREATE);
+    if(wd < 0){
+        perror("inotify add watch failed");
+        return 0;
+    }
+
     while(1){
         if(mq_receive(monitor_queue, (void *)&msg, sizeof(toy_msg_t), 0) < 0){
             perror("Message queue recevie error : disk");
             exit(0);
         }
-        printf("Disk msq arrived\n");
+        else{
+            printf("Disk msq arrived\n");
+            print_msq(&msg);
+        }
+        
+        numRead = read(inotifyFd, buf, 1024);
+        if(numRead < 0){
+            perror("read failed : disk thread");
+            return 0;
+        }
 
-        print_msq(&msg);
+        for(p = buf; p < buf + numRead; ){
+            event = (struct inotify_event *) p;
+            displayInotifyEvent(event);
 
-        apipe = popen(cmd, "r");
+            p += sizeof(struct inotify_event) + event->len;
+        }
+        
+        total_size = get_directory_size(TOY_TEST_FS);
+        printf("directory size: %ld\n", total_size);
+    
+
+        /*apipe = popen(cmd, "r");
         if (apipe == NULL) {
             perror("popen");
             exit(0);
@@ -278,7 +355,7 @@ void *disk_service_thread(){
         while (fgets(buf, 1024, apipe) != NULL) {
             printf("%s", buf);
         }
-        pclose(apipe);
+        pclose(apipe);*/
         //posix_sleep_ms(10, 0);
     }
 }
@@ -338,7 +415,36 @@ static void timer_expire_signal_handler(){
     sem_post(&global_timer_sem);
 }
 
+static void displayInotifyEvent(struct inotify_event *i){
+    printf("    wd =%2d; ", i->wd);
+    if (i->cookie > 0)
+        printf("cookie =%4d; ", i->cookie);
+
+    printf("mask = ");
+    if (i->mask & IN_ACCESS)        printf("IN_ACCESS ");
+    if (i->mask & IN_ATTRIB)        printf("IN_ATTRIB ");
+    if (i->mask & IN_CLOSE_NOWRITE) printf("IN_CLOSE_NOWRITE ");
+    if (i->mask & IN_CLOSE_WRITE)   printf("IN_CLOSE_WRITE ");
+    if (i->mask & IN_CREATE)        printf("IN_CREATE ");
+    if (i->mask & IN_DELETE)        printf("IN_DELETE ");
+    if (i->mask & IN_DELETE_SELF)   printf("IN_DELETE_SELF ");
+    if (i->mask & IN_IGNORED)       printf("IN_IGNORED ");
+    if (i->mask & IN_ISDIR)         printf("IN_ISDIR ");
+    if (i->mask & IN_MODIFY)        printf("IN_MODIFY ");
+    if (i->mask & IN_MOVE_SELF)     printf("IN_MOVE_SELF ");
+    if (i->mask & IN_MOVED_FROM)    printf("IN_MOVED_FROM ");
+    if (i->mask & IN_MOVED_TO)      printf("IN_MOVED_TO ");
+    if (i->mask & IN_OPEN)          printf("IN_OPEN ");
+    if (i->mask & IN_Q_OVERFLOW)    printf("IN_Q_OVERFLOW ");
+    if (i->mask & IN_UNMOUNT)       printf("IN_UNMOUNT ");
+    printf("\n");
+
+    if (i->len > 0)
+        printf("        name = %s\n", i->name);
+}
+
 void set_periodic_timer(long sec_delay, long usec_delay)
+
 {
 	struct itimerval itimer_val = {
 		 .it_interval = { .tv_sec = sec_delay, .tv_usec = usec_delay },
