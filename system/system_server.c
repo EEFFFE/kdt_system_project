@@ -8,6 +8,7 @@
 #include <assert.h>
 #include <pthread.h>
 #include <mqueue.h>
+#include <semaphore.h>
 
 #include <system_server.h>
 #include <gui.h>
@@ -27,6 +28,9 @@ static mqd_t disk_queue;
 static mqd_t camera_queue;
 
 static int toy_timer = 0;
+pthread_mutex_t toy_timer_mutex = PTHREAD_MUTEX_INITIALIZER;
+static sem_t global_timer_sem;
+static bool global_timer_stopped;
 
 void timer_sighandler();
 int posix_sleep_ms(unsigned int overp_time, unsigned int underp_time);
@@ -37,9 +41,11 @@ void *watchdog_thread();
 void *monitor_thread();
 void *disk_service_thread();
 void *camera_service_thread();
+static void *timer_thread(void *not_used);
 
 void signal_exit(void);
 static void timer_expire_signal_handler();
+void set_periodic_timer(long sec_delay, long usec_delay);
 
 int system_server();
 
@@ -51,14 +57,11 @@ int system_server()
     struct sigevent   sev;
     timer_t tidlist;
     int retcode;
-    pthread_t watchdog_thread_tid, monitor_thread_tid, disk_service_thread_tid, camera_service_thread_tid;
+    pthread_t watchdog_thread_tid, monitor_thread_tid, disk_service_thread_tid, camera_service_thread_tid, timer_thread_tid;;
 
     printf("나 system_server 프로세스!\n");
 
-    signal(SIGALRM, timer_expire_signal_handler);
-    
-
-    sigemptyset(&sa.sa_mask);
+    /*sigemptyset(&sa.sa_mask);
     sa.sa_flags = SA_SIGINFO;
     sa.sa_handler = timer_sighandler;
     sigemptyset(&sa.sa_mask);
@@ -83,7 +86,7 @@ int system_server()
         perror("timer_settime");
         exit(-1);
     }    
-
+    */
     watchdog_queue = mq_open("/watchdog_queue", O_RDWR);
     monitor_queue = mq_open("/monitor_queue", O_RDWR);
     disk_queue = mq_open("/disk_queue", O_RDWR);
@@ -114,6 +117,12 @@ int system_server()
         exit(1);
     }
 
+    retcode = pthread_create(&timer_thread_tid, NULL, timer_thread, NULL);
+    if(retcode < 0){
+        perror("Camera service thread create error");
+        exit(1);
+    }
+
     if(pthread_mutex_lock(&system_loop_mutex) < 0){
         perror("System server mutex lock error");
         exit(0);
@@ -124,6 +133,9 @@ int system_server()
             printf("System exit timed out!\n");
         }
     }
+    while (system_loop_exit == false) {
+        pthread_cond_wait(&system_loop_cond, &system_loop_mutex);
+    }
     if(pthread_mutex_unlock(&system_loop_mutex) < 0){
         perror("System server mutex unlock error");
         exit(0);
@@ -132,6 +144,8 @@ int system_server()
         sleep(1);
     }
     
+    printf("<== system\n");
+
     while (1) {
         posix_sleep_ms(5, 0);
     }
@@ -164,9 +178,10 @@ int create_system_server()
 }
 
 void timer_sighandler(){
-    toy_timer ++;
-    signal_exit();
-    //printf("System timer : %d sec\n", timer );
+    pthread_mutex_lock(&toy_timer_mutex);
+    toy_timer++;
+    printf("toy_timer: %d\n", toy_timer);
+    pthread_mutex_unlock(&toy_timer_mutex);
 }   
 
 int posix_sleep_ms(unsigned int overp_time, unsigned int underp_time)
@@ -267,6 +282,20 @@ void *camera_service_thread(){
 
 }
 
+static void *timer_thread(void *not_used)
+{
+    signal(SIGALRM, timer_sighandler);
+    set_periodic_timer(1, 1);
+
+    sem_init(&global_timer_sem, 0, 0);
+
+    while (!global_timer_stopped) {
+        sem_wait(&global_timer_sem);
+        timer_sighandler();
+    }
+	return 0;
+}
+
 void signal_exit(void)
 {
     if(pthread_mutex_lock(&system_loop_mutex) < 0){
@@ -283,8 +312,16 @@ void signal_exit(void)
     }
 }
 
-static void timer_expire_signal_handler()
+static void timer_expire_signal_handler(){
+    sem_post(&global_timer_sem);
+}
+
+void set_periodic_timer(long sec_delay, long usec_delay)
 {
-    toy_timer++;
-    signal_exit();
+	struct itimerval itimer_val = {
+		 .it_interval = { .tv_sec = sec_delay, .tv_usec = usec_delay },
+		 .it_value = { .tv_sec = sec_delay, .tv_usec = usec_delay }
+    };
+
+	setitimer(ITIMER_REAL, &itimer_val, (struct itimerval*)0);
 }
