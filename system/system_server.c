@@ -119,7 +119,7 @@ int system_server()
 
     retcode = pthread_create(&timer_thread_tid, NULL, timer_thread, NULL);
     if(retcode < 0){
-        perror("Camera service thread create error");
+        perror("Timer thread create error");
         exit(1);
     }
 
