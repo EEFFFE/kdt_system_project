@@ -26,7 +26,7 @@
 #include <gui.h>
 #include <input.h>
 #include <web_server.h>
-#include <camera_HAL.h>
+#include <hardware.h>
 #include <toy_message.h>
 #include <shared_memory.h>
 #include <bits/sigevent-consts.h>
@@ -370,9 +370,16 @@ void *disk_service_thread(){
 
 void *camera_service_thread(){
     printf("Camera service thread started!\n");
-    toy_camera_open();
-    toy_camera_take_picture();
+    hw_module_t *module = NULL;
     toy_msg_t msg;
+    int res;
+    
+    res = hw_get_camera_module((const hw_module_t **)&module);
+    assert(res == 0);
+    printf("Camera module name: %s\n", module->name);
+    printf("Camera module tag: %d\n", module->tag);
+    printf("Camera module id: %s\n", module->id);
+    module->open();
 
     while(1){
         if(mq_receive(camera_queue, (void *)&msg, sizeof(toy_msg_t), 0) < 0){
@@ -383,10 +390,10 @@ void *camera_service_thread(){
 
         print_msq(&msg);
         if(msg.msg_type == CAMERA_TAKE_PICTURE){
-            toy_camera_take_picture();
+            module->take_picture();
         }
         else if (msg.msg_type == DUMP_STATE) {
-            toy_camera_dump();
+            module->dump();
         }
     }
 

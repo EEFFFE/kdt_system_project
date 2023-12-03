@@ -19,7 +19,7 @@ ControlThread::~ControlThread()
 
 int ControlThread::takePicture()
 {
-    cout << "C++ 연동:  사진을 캡쳐합니다." << endl;
+    cout << "C++ 연동:  사진을 캡쳐합니다. (oem)" << endl;
 
     return 0;
 }
