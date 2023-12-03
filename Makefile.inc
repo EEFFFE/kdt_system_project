@@ -1,7 +1,7 @@
 PL_CFLAGS = -I../$(SYSTEM) -I../$(UI) -I../$(WEB_SERVER) -I../$(HAL) -I../.  -g -o
 PL_CPPFLAGS = -lpthread -lm -lrt
 
-CPPLIBS = -lpthread -lm -lrt
+CPPLIBS = -lpthread -lm -lrt -lseccomp
 
 SYSTEM = system
 UI = ui
@@ -23,7 +23,7 @@ HEADERS =  ../$(SYSTEM)/system_server.h\
 
 CPPINCLUDES = -l${SYSTEM} -l${UI} -l${WEB_SERVER} -l${HAL}		
 
-CFLAGS = ${PL_CFLAGS}
+CFLAGS = ${PL_CFLAGS} 
 CPPFLAGS = ${CPPINCLUDESDIRS} -g -O0 -std=c++14
 
 RM = rm -f

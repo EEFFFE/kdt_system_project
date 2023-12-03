@@ -17,6 +17,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <execinfo.h>
+#include <seccomp.h>
+#include <sys/mman.h>
 
 #include <system_server.h>
 #include <gui.h>
@@ -73,6 +75,7 @@ int toy_mutex(char **args);
 int toy_message_queue(char **args);
 int toy_read_elf_header(char **args);
 int toy_dump_state(char **args);
+int toy_mincore(char **args);
 
 char *builtin_str[] = {
     "send",
@@ -81,9 +84,9 @@ char *builtin_str[] = {
     "mq",
     "elf",
     "dump",
+    "mincore",
     "exit"
 };
-
 
 int (*builtin_func[]) (char **) = {
     &toy_send,
@@ -92,8 +95,10 @@ int (*builtin_func[]) (char **) = {
     &toy_message_queue,
     &toy_read_elf_header,
     &toy_dump_state,
+    &toy_mincore,
     &toy_exit
 };
+
 
 static int posix_sleep_ms(unsigned int overp_time, unsigned int underp_time);
 
@@ -194,11 +199,34 @@ int input()
     pthread_t command_thread_tid, sensor_thread_tid;
     int i;
     pthread_t thread[NUMTHREAD];
+    scmp_filter_ctx ctx;
 
 
     siga.sa_sigaction = segfault_handler;
 
     sigaction(SIGSEGV, &siga, NULL);
+
+    ctx = seccomp_init(SCMP_ACT_ALLOW);
+    if (ctx == NULL) {
+        perror("seccompinit failed");
+        return -1;
+    }
+
+    int rc = seccomp_rule_add(ctx, SCMP_ACT_ERRNO(EPERM), SCMP_SYS(mincore), 0);
+    if (rc < 0) {
+        perror("seccomp rule_add failed");
+        return -1;
+    }
+
+    seccomp_export_pfc(ctx, 5);
+    seccomp_export_bpf(ctx, 6);
+
+    rc = seccomp_load(ctx);
+    if (rc < 0) {
+        perror("seccomp load failed");
+        return -1;
+    }
+    seccomp_release(ctx);
 
     shmid = shmget(SHM_KEY_SENSOR, sizeof(shm_sensor_t), IPC_CREAT | 0777);
     if (shmid < 0){
@@ -448,6 +476,7 @@ int toy_message_queue(char **args)
     return 1;
 }
 
+
 /* read_elf */
 int toy_read_elf_header(char **args)
 {
@@ -496,6 +525,19 @@ int toy_dump_state(char **args)
     assert(mqretcode == 0);
     mqretcode = mq_send(monitor_queue, (char *)&msg, sizeof(msg), 0);
     assert(mqretcode == 0);
+
+    return 1;
+}
+
+int toy_mincore(char **args)
+{
+    unsigned char vec[20];
+    int res;
+    size_t page = sysconf(_SC_PAGESIZE);
+    void *addr = mmap(NULL, 20 * page, PROT_READ | PROT_WRITE,
+                    MAP_NORESERVE | MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+    res = mincore(addr, 10 * page, vec);
+    assert(res == 0);
 
     return 1;
 }

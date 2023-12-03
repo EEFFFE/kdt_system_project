@@ -24,7 +24,7 @@ $(TARGET): $(MAINo)
 	@ echo ${BUILD_DIRS}
 	@ for dir in ${BUILD_DIRS}; do (cd $${dir}; ${MAKE}); \
 		if test $$? -ne 0; then break; fi; done;	
-	$(CPP) -o $(TARGET) $(MAINo) $(DIROBJ) $(HALOBJ) $(CPPLIBS)
+	$(CPP) -o $(TARGET) $(MAINo) $(DIROBJ) $(HALOBJ) $(CPPLIBS) 
 
 $(MAINo): $(MAINh) $(MAINc)
 	$(CC) $(MAINf) $(MAINo) $(MAINc)

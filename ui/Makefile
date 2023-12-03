@@ -16,7 +16,7 @@ $(GEN_EXE1): $(HEADERS) $(SRC1)
 
 
 $(GEN_EXE2): $(HEADERS) $(SRC2)
-	$(CC) -c $(CFLAGS) $(GEN_EXE2) $(SRC2)
+	$(CC) -c $(CFLAGS) $(GEN_EXE2) $(SRC2) 
 
 allgen : ${GEN_EXE}
 
