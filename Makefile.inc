@@ -20,6 +20,7 @@ HEADERS =  ../$(SYSTEM)/system_server.h\
 		../$(HAL)/oem/ControlThread.h\
 		../$(HAL)/toy/camera_HAL_toy.h\
 		../$(HAL)/toy/ControlThread.h\
+		../$(HAL)/hardware.h\
 		../toy_message.h\
 		
 

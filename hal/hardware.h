@@ -33,6 +33,6 @@ typedef struct hw_module_t {
     void* dso;
 } hw_module_t;
 
-int hw_get_camera_module(const struct hw_module_t **module);
+int hw_get_camera_module(const struct hw_module_t **module, const char *libpath);
 
 #endif

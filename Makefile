@@ -15,7 +15,7 @@ MAINo = $(FILENAME).o
 MAINc = $(FILENAME).c
 
 MAINh = $(SYSTEM)/system_server.h $(UI)/gui.h $(UI)/input.h $(WEB_SERVER)/web_server.h ./toy_message.h
-MAINf = -I$(SYSTEM) -I$(UI) -I$(WEB_SERVER) -I./ -c -g -o
+MAINf = -I$(SYSTEM) -I$(UI) -I$(WEB_SERVER) -I$(HAL) -I./ -c -g -o
 
 DIROBJ = ./system/system_server.o ./ui/gui.o ./ui/input.o ./web_server/web_server.o ./hal/hardware.o
 #HALOBJ = ./hal/camera_HAL.o ./hal/ControlThread.o
@@ -25,7 +25,7 @@ $(TARGET): $(MAINo)
 	@ echo ${BUILD_DIRS}
 	@ for dir in ${BUILD_DIRS}; do (cd $${dir}; ${MAKE}); \
 		if test $$? -ne 0; then break; fi; done;	
-	$(CPP) -o $(TARGET) $(MAINo) $(DIROBJ) $(HALOBJ) $(CPPLIBS) 
+	$(CPP) -o $(TARGET) $(MAINo) $(DIROBJ) $(HALOBJ) $(CPPLIBS) -ldl -Wl,--no-as-needed
 
 $(MAINo): $(MAINh) $(MAINc)
 	$(CC) $(MAINf) $(MAINo) $(MAINc)

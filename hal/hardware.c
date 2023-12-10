@@ -7,15 +7,15 @@
 
 #include <hardware.h>
 
-#define HAL_LIBRARY_PATH1 "./hal/libcamera.so"
+#define HAL_LIBRARY_PATH1 "./libcamera.so"
 
-static int load(const struct hw_module_t **pHmi)
+static int load(const struct hw_module_t **pHmi, const char *libpath)
 {
     int status = 0;
     void *handle;
     struct hw_module_t *hmi;
 
-    handle = dlopen(HAL_LIBRARY_PATH1, RTLD_NOW);
+    handle = dlopen(libpath, RTLD_NOW);
     if (handle == NULL) {
         char const *err_str = dlerror();
         printf("load: module\n%s", err_str?err_str:"unknown");
@@ -50,9 +50,9 @@ static int load(const struct hw_module_t **pHmi)
     return status;
 }
 
-int hw_get_camera_module(const struct hw_module_t **module)
+int hw_get_camera_module(const struct hw_module_t **module, const char *libpath)
 {
-    return load(module);
+    return load(module, libpath);
 }
 
 

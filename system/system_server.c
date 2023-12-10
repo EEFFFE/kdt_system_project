@@ -374,7 +374,7 @@ void *camera_service_thread(){
     toy_msg_t msg;
     int res;
     
-    res = hw_get_camera_module((const hw_module_t **)&module);
+    res = hw_get_camera_module((const hw_module_t **)&module, "./hal/libcamera.so");
     assert(res == 0);
     printf("Camera module name: %s\n", module->name);
     printf("Camera module tag: %d\n", module->tag);
