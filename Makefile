@@ -1,6 +1,6 @@
 include Makefile.inc
 
-DIRS = system \ ui \ web_server \ hal
+DIRS = hal \ system \ ui \ web_server
 BUILD_DIRS = ${DIRS}
 
 SYSTEM = ./system
@@ -17,8 +17,9 @@ MAINc = $(FILENAME).c
 MAINh = $(SYSTEM)/system_server.h $(UI)/gui.h $(UI)/input.h $(WEB_SERVER)/web_server.h ./toy_message.h
 MAINf = -I$(SYSTEM) -I$(UI) -I$(WEB_SERVER) -I./ -c -g -o
 
-DIROBJ = ./system/system_server.o ./ui/gui.o ./ui/input.o ./web_server/web_server.o
-HALOBJ = ./hal/camera_HAL.o ./hal/ControlThread.o
+DIROBJ = ./system/system_server.o ./ui/gui.o ./ui/input.o ./web_server/web_server.o ./hal/hardware.o
+#HALOBJ = ./hal/camera_HAL.o ./hal/ControlThread.o
+
 
 $(TARGET): $(MAINo) 
 	@ echo ${BUILD_DIRS}

@@ -21,7 +21,7 @@ EXE = $(GEN_EXE1) $(GEN_EXE2) $(GEN_EXE3)
 all: $(EXE)
 
 $(GEN_EXE3): $(HEADERS) $(SRC3)
-	$(CC) -g -r $(CFLAGS) $(GEN_EXE3) $(SRC3)
+	$(CC) -g $(PL_CFLAGS) -o $(GEN_EXE3) $(SRC3)
 
 #.PHONY: libcamera.oem.so
 $(GEN_EXE1): $(HEADERS)
