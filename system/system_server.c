@@ -5,6 +5,7 @@
 
 #define DUMP_STATE 2
 
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <sys/prctl.h>
 #include <signal.h>
@@ -20,6 +21,7 @@
 #include <dirent.h>
 #include <sys/inotify.h>
 #include <sys/stat.h>
+#include <sched.h>
 
 
 #include <system_server.h>
@@ -39,6 +41,7 @@ static mqd_t watchdog_queue;
 static mqd_t monitor_queue;
 static mqd_t disk_queue;
 static mqd_t camera_queue;
+static mqd_t engine_queue;
 
 static int toy_timer = 0;
 pthread_mutex_t toy_timer_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -59,6 +62,7 @@ static long get_directory_size(char *dirname);
 void *disk_service_thread();
 void *camera_service_thread();
 static void *timer_thread(void *not_used);
+static void *engine_thread();
 
 void signal_exit(void);
 static void timer_expire_signal_handler();
@@ -78,7 +82,7 @@ int system_server()
     struct sigevent   sev;
     timer_t tidlist;
     int retcode;
-    pthread_t watchdog_thread_tid, monitor_thread_tid, disk_service_thread_tid, camera_service_thread_tid, timer_thread_tid;;
+    pthread_t watchdog_thread_tid, monitor_thread_tid, disk_service_thread_tid, camera_service_thread_tid, timer_thread_tid, engine_thread_tid;
 
     printf("나 system_server 프로세스!\n");
 
@@ -141,6 +145,12 @@ int system_server()
     retcode = pthread_create(&timer_thread_tid, NULL, timer_thread, NULL);
     if(retcode < 0){
         perror("Timer thread create error");
+        exit(1);
+    }
+
+    retcode = pthread_create(&engine_thread_tid, NULL, engine_thread, NULL);
+    if(retcode < 0){
+        perror("Engine thread create error");
         exit(1);
     }
 
@@ -401,6 +411,7 @@ void *camera_service_thread(){
 
 static void *timer_thread(void *not_used)
 {
+    printf("Timer thread started!\n");
     signal(SIGALRM, timer_sighandler);
     //set_periodic_timer(1, 1);
 
@@ -411,6 +422,35 @@ static void *timer_thread(void *not_used)
         timer_sighandler();
     }
 	return 0;
+}
+
+static void *engine_thread(){
+    toy_msg_t msg;
+    struct sched_param sched;
+    cpu_set_t set;
+    CPU_ZERO(&set);
+    CPU_SET(0, &set);
+
+    printf("Engine thread started!\n");
+
+    memset(&sched, 0, sizeof(sched));
+    sched.sched_priority = 50;
+
+	if (sched_setscheduler(gettid(), SCHED_RR, &sched) < 0) {
+		perror("sched_setscheduler error : engine_thread");
+        return (void*) -1;
+	}
+
+    if (sched_setaffinity(gettid(), sizeof(set), &set) < 0) {
+        perror("sched_setaffinity error : engine_thread");
+        exit(EXIT_FAILURE);
+    }
+
+    while (true) {
+        sleep(100);
+    }
+
+    return 0;
 }
 
 void signal_exit(void)
